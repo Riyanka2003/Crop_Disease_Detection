@@ -1,0 +1,15 @@
+# Ignore compiled Python files and cache
+__pycache__/
+*.pyc
+
+# Ignore virtual environments
+venv/
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+
+# Ignore large data files that are tracked by Git LFS
+*.h5
+*.pkl
+*.h5_
