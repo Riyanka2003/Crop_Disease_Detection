@@ -1,4 +1,5 @@
 import os
+import gradio as gr
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from utils import model_predict
@@ -57,4 +58,6 @@ def index():
     return render_template('index.html', prediction=prediction, error=error)
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
     app.run(debug=True)
