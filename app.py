@@ -56,7 +56,11 @@ def index():
                     if os.path.exists(filepath):
                         os.remove(filepath)
     return render_template('index.html', prediction=prediction, error=error)
-
+demo = gr.Interface(
+    fn=predict_image,
+    inputs="image",
+    outputs="text"
+)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     demo.launch(server_name="0.0.0.0", server_port=port)
