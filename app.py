@@ -5,7 +5,7 @@ from utils import model_predict
 import tensorflow as tf
 
 UPLOAD_FOLDER = "uploads"
-model = tf.keras.model.load_model('model/model.h5')
+model = tf.keras.models.load_model('model/model.h5')
 
 # Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
