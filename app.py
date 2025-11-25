@@ -1,53 +1,69 @@
 import os
 import requests
+import tensorflow as tf
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from utils import model_predict
-import tensorflow as tf
 
+# --- CONFIGURATION ---
 MODEL_PATH = 'model/model.h5'
 MODEL_URL = 'https://github.com/Riyanka2003/Crop_Disease_Detection/raw/main/model/model.h5'
-
-def get_model():
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 10000:
-        print("Downloading model from GitHub...")
-        response = requests.get(MODEL_URL, stream=True)
-        with open(MODEL_PATH, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        print("Download complete.")
-    return tf.keras.models.load_model(MODEL_PATH)
-
-# Load the model using the function
-model = get_model()
-
 UPLOAD_FOLDER = "uploads"
-model = tf.keras.models.load_model('model/model.h5')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 # Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Initialize Flask App
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Allowed file extensions
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+# --- MODEL LOADING LOGIC ---
+def get_model():
+    """
+    Checks if the model file exists and is valid.
+    If it's missing or too small (LFS pointer file), it downloads the real file from GitHub.
+    """
+    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 10000:
+        print("⚠️ Model file is missing or invalid (LFS pointer detected).")
+        print(f"⬇️ Downloading model from: {MODEL_URL}")
+        
+        try:
+            response = requests.get(MODEL_URL, stream=True)
+            if response.status_code == 200:
+                with open(MODEL_PATH, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print("✅ Download complete.")
+            else:
+                print(f"❌ Failed to download model. Status code: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"❌ Error downloading model: {e}")
+            return None
 
+    print("🔄 Loading Keras model...")
+    try:
+        loaded_model = tf.keras.models.load_model(MODEL_PATH)
+        print("✅ Model loaded successfully!")
+        return loaded_model
+    except Exception as e:
+        print(f"❌ Error loading Keras model: {e}")
+        return None
+
+# Load the model ONCE at startup
+model = get_model()
+
+# --- HELPER FUNCTIONS ---
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Load the model once at startup
-try:
-    model = tf.keras.models.load_model(MODEL_PATH)
-    print("✅ Model loaded successfully!")
-except Exception as e:
-    print(f"❌ Failed to load model: {e}")
-    model = None
-
+# --- ROUTES ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
     prediction = None
     error = None
+
     if request.method == 'POST':
         if 'image' not in request.files:
             error = "No file part"
@@ -61,6 +77,7 @@ def index():
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
+
                 try:
                     if model is None:
                         error = "Model not loaded. Please ensure the model file exists."
@@ -69,10 +86,13 @@ def index():
                 except Exception as e:
                     error = f"Prediction failed: {e}"
                 finally:
+                    # Clean up the uploaded file after prediction
                     if os.path.exists(filepath):
                         os.remove(filepath)
+
     return render_template('index.html', prediction=prediction, error=error)
+
 if __name__ == "__main__":
     # This block is for local development only!
-    app.run(debug=True) 
-    # For local testing, Flask defaults to port 5000.
+    # Render uses Gunicorn and will ignore this block.
+    app.run(debug=True)
