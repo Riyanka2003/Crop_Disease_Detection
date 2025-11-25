@@ -18,38 +18,44 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# --- MODEL LOADING LOGIC ---
+# --- ROBUST MODEL LOADING ---
 def get_model():
     """
-    Checks if the model file exists and is valid.
-    If it's missing or too small (LFS pointer file), it downloads the real file from GitHub.
+    Tries to load the model. If it fails (corrupt file), 
+    it automatically deletes the bad file and downloads a fresh one.
     """
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 10000:
-        print("⚠️ Model file is missing or invalid (LFS pointer detected).")
-        print(f"⬇️ Downloading model from: {MODEL_URL}")
+    model = None
+    print("🔄 Attempting to load model...")
+    
+    try:
+        # First attempt to load
+        model = tf.keras.models.load_model(MODEL_PATH)
+        print("✅ Model loaded successfully from disk!")
+    except Exception as e:
+        print(f"⚠️ Load failed (File might be corrupt): {e}")
+        print("⬇️ Downloading fresh model from GitHub...")
         
         try:
+            # Force download
+            if os.path.exists(MODEL_PATH):
+                os.remove(MODEL_PATH) # Delete corrupt file
+                
             response = requests.get(MODEL_URL, stream=True)
             if response.status_code == 200:
                 with open(MODEL_PATH, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 print("✅ Download complete.")
+                
+                # Second attempt to load
+                model = tf.keras.models.load_model(MODEL_PATH)
+                print("✅ Model loaded successfully after download!")
             else:
-                print(f"❌ Failed to download model. Status code: {response.status_code}")
-                return None
-        except Exception as e:
-            print(f"❌ Error downloading model: {e}")
-            return None
-
-    print("🔄 Loading Keras model...")
-    try:
-        loaded_model = tf.keras.models.load_model(MODEL_PATH)
-        print("✅ Model loaded successfully!")
-        return loaded_model
-    except Exception as e:
-        print(f"❌ Error loading Keras model: {e}")
-        return None
+                print(f"❌ Failed to download. Status: {response.status_code}")
+        except Exception as e2:
+            print(f"❌ Critical Error: Could not download or load model: {e2}")
+            
+    return model
 
 # Load the model ONCE at startup
 model = get_model()
@@ -80,19 +86,21 @@ def index():
 
                 try:
                     if model is None:
-                        error = "Model not loaded. Please ensure the model file exists."
+                        # Attempt to reload if it failed initially
+                        global model
+                        model = get_model()
+                    
+                    if model is None:
+                        error = "Model could not be loaded. Check server logs."
                     else:
                         prediction = model_predict(model, filepath)
                 except Exception as e:
                     error = f"Prediction failed: {e}"
                 finally:
-                    # Clean up the uploaded file after prediction
                     if os.path.exists(filepath):
                         os.remove(filepath)
 
     return render_template('index.html', prediction=prediction, error=error)
 
 if __name__ == "__main__":
-    # This block is for local development only!
-    # Render uses Gunicorn and will ignore this block.
     app.run(debug=True)
