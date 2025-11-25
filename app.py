@@ -5,6 +5,9 @@ from werkzeug.utils import secure_filename
 from utils import model_predict
 import tensorflow as tf
 
+MODEL_PATH = 'model/model.h5'
+MODEL_URL = 'https://github.com/Riyanka2003/Crop_Disease_Detection/raw/main/model/model.h5'
+
 def get_model():
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 10000:
         print("Downloading model from GitHub...")
