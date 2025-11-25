@@ -11,8 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port on which the app runs (standard for Hugging Face)
-EXPOSE 7860
-
-# Define the command to run your app with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:7860", "app:app"]
+# Render assigns a dynamic port (usually 10000), so we don't hardcode it.
+# We use the shell form of CMD to allow the $PORT variable to expand.
+CMD gunicorn --bind 0.0.0.0:$PORT app:app
