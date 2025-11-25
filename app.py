@@ -1,4 +1,5 @@
 import os
+import requests
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from utils import model_predict
@@ -18,6 +19,18 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+def get_model():
+    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 10000:
+        print("Downloading model from GitHub...")
+        response = requests.get(MODEL_URL, stream=True)
+        with open(MODEL_PATH, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print("Download complete.")
+    return tf.keras.models.load_model(MODEL_PATH)
+
+# Load the model using the function
+model = get_model()
 
 # Load the model once at startup
 try:
