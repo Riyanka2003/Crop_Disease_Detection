@@ -1,5 +1,5 @@
-tensorflow
 flask
 numpy
-gradio
 pillow
+gunicorn
+tensorflow-cpu
