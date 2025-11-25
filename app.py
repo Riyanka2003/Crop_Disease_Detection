@@ -7,7 +7,10 @@ from utils import model_predict
 
 # --- CONFIGURATION ---
 MODEL_PATH = 'model/model.h5'
-MODEL_URL = 'https://github.com/Riyanka2003/Crop_Disease_Detection/raw/main/model/model.h5'
+
+# 🚨 IMPORTANT: Using the 'media' domain for LFS files
+MODEL_URL = 'https://media.githubusercontent.com/media/Riyanka2003/Crop_Disease_Detection/main/model/model.h5'
+
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
@@ -23,7 +26,7 @@ model = None
 
 def download_file(url, filename):
     """
-    Helper to download a file with a progress print.
+    Downloads file and checks if it's a valid size.
     """
     print(f"⬇️ Downloading from {url}...")
     try:
@@ -32,7 +35,17 @@ def download_file(url, filename):
             with open(filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
-        print("✅ Download complete.")
+        
+        # Check size after download
+        file_size = os.path.getsize(filename)
+        print(f"✅ Download complete. Size: {file_size / (1024*1024):.2f} MB")
+        
+        if file_size < 10000: # If smaller than 10KB, it's definitely the fake pointer file
+            print("❌ ERROR: Downloaded file is too small! It's likely the Git LFS pointer text, not the real model.")
+            with open(filename, 'r') as f:
+                print(f"📄 File content preview: {f.read(100)}") # Print first 100 chars to verify
+            return False
+            
         return True
     except Exception as e:
         print(f"❌ Download failed: {e}")
@@ -48,13 +61,18 @@ def load_model_robust():
     
     # Attempt 1: Try to load existing file
     if os.path.exists(MODEL_PATH):
-        try:
-            print("🔄 Found model file. Attempting to load...")
-            return tf.keras.models.load_model(MODEL_PATH)
-        except Exception as e:
-            print(f"⚠️ Existing model file is corrupt or invalid: {e}")
-            print("🗑️ Deleting corrupt file...")
+        # Double check size before even trying to load
+        if os.path.getsize(MODEL_PATH) < 10000:
+            print("⚠️ Existing file is too small (LFS pointer). Deleting...")
             os.remove(MODEL_PATH)
+        else:
+            try:
+                print("🔄 Found model file. Attempting to load...")
+                return tf.keras.models.load_model(MODEL_PATH)
+            except Exception as e:
+                print(f"⚠️ Existing model file is corrupt or invalid: {e}")
+                print("🗑️ Deleting corrupt file...")
+                os.remove(MODEL_PATH)
     else:
         print("⚠️ Model file not found on disk.")
 
