@@ -1,5 +1,4 @@
 import os
-import gradio as gr
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from utils import model_predict
@@ -56,12 +55,7 @@ def index():
                     if os.path.exists(filepath):
                         os.remove(filepath)
     return render_template('index.html', prediction=prediction, error=error)
-demo = gr.Interface(
-    fn=predict_image,
-    inputs="image",
-    outputs="text"
-)
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 7860))
-    demo.launch(server_name="0.0.0.0", server_port=port)
-    app.run(debug=True)
+    # This block is for local development only!
+    app.run(debug=True) 
+    # For local testing, Flask defaults to port 5000.
