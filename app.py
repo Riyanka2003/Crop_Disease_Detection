@@ -21,45 +21,62 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Global variable to store the model
 model = None
 
+def download_file(url, filename):
+    """
+    Helper to download a file with a progress print.
+    """
+    print(f"⬇️ Downloading from {url}...")
+    try:
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with open(filename, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        print("✅ Download complete.")
+        return True
+    except Exception as e:
+        print(f"❌ Download failed: {e}")
+        return False
+
 # --- ROBUST MODEL LOADING ---
 def load_model_robust():
     """
-    Downloads and loads the model. Returns the model object or None.
+    Aggressively tries to load the model.
+    If loading fails for ANY reason, it deletes the file and re-downloads.
     """
-    print("🔄 Checking model status...")
+    print("🔄 Initializing Model Loading...")
     
-    # 1. Check if model exists and is valid (not a fake LFS pointer)
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 10000:
-        print("⚠️ Model missing or invalid. Downloading from GitHub...")
+    # Attempt 1: Try to load existing file
+    if os.path.exists(MODEL_PATH):
         try:
-            if os.path.exists(MODEL_PATH):
-                os.remove(MODEL_PATH) # Delete bad file
-            
-            response = requests.get(MODEL_URL, stream=True)
-            if response.status_code == 200:
-                with open(MODEL_PATH, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                print("✅ Download complete.")
-            else:
-                print(f"❌ Failed to download. Status: {response.status_code}")
-                return None
+            print("🔄 Found model file. Attempting to load...")
+            return tf.keras.models.load_model(MODEL_PATH)
         except Exception as e:
-            print(f"❌ Download error: {e}")
-            return None
+            print(f"⚠️ Existing model file is corrupt or invalid: {e}")
+            print("🗑️ Deleting corrupt file...")
+            os.remove(MODEL_PATH)
+    else:
+        print("⚠️ Model file not found on disk.")
 
-    # 2. Load the model
-    print("🔄 Loading Keras model from disk...")
-    try:
-        loaded_model = tf.keras.models.load_model(MODEL_PATH)
-        print("✅ Model loaded successfully!")
-        return loaded_model
-    except Exception as e:
-        print(f"❌ Error loading model: {e}")
+    # Attempt 2: Download and load
+    print("🔄 Starting fresh download sequence...")
+    if download_file(MODEL_URL, MODEL_PATH):
+        try:
+            print("🔄 Attempting to load newly downloaded model...")
+            return tf.keras.models.load_model(MODEL_PATH)
+        except Exception as e:
+            print(f"❌ Critical Error: Downloaded model is also invalid: {e}")
+            return None
+    else:
+        print("❌ Could not download model.")
         return None
 
 # Load model ONCE at startup
 model = load_model_robust()
+if model:
+    print("✅✅✅ SERVER READY: Model loaded successfully!")
+else:
+    print("❌❌❌ SERVER WARNING: Running without model!")
 
 # --- HELPER FUNCTIONS ---
 def allowed_file(filename):
